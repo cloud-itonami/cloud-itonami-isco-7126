@@ -1,0 +1,10 @@
+{:itonami.blueprint/id "cloud-itonami-isco-7126"
+ :itonami.blueprint/name "Independent Plumbing Practice"
+ :itonami.blueprint/isco-08 "7126"
+ :itonami.blueprint/domain :trades/plumbing
+ :itonami.blueprint/license "AGPL-3.0-or-later"
+ :itonami.blueprint/social-impact [:housing-quality :local-jobs :water-safety]
+ :itonami.blueprint/governor :plumbing-governor
+ :itonami.blueprint/robotics true
+ :itonami.blueprint/required-technologies [:robotics :forms :telemetry :dmn :bpmn :audit-ledger]
+ :itonami.blueprint/status :public-oss}
