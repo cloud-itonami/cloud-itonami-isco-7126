@@ -45,6 +45,29 @@ Resolves via [`kotoba-lang/occupation`](https://github.com/kotoba-lang/occupatio
 See [`docs/business-model.md`](docs/business-model.md) and
 [`docs/operator-guide.md`](docs/operator-guide.md).
 
+## Reference implementation
+
+`src/plumbing/{store,governor}.cljc` is a minimal but real implementation of
+the Core Contract above (pure cljc, no external deps):
+
+- `plumbing.store` — `Store` protocol + `MemStore`: sites, jobs, repairs,
+  invoices. A repair/invoice can only be recorded against a registered job
+  on a registered site (job provenance).
+- `plumbing.governor` — `PlumbingGovernor`: `assess` gates a proposal
+  against the job env. Hard invariants force `:hold` (no job, direct-write
+  instead of `:propose`, or a `:live-line` repair below `:high` safety-class);
+  `:high`/`:safety-critical` and low-confidence proposals escalate to
+  `:human-approval` — live-line repairs can never be auto-approved.
+
+```bash
+clojure -M:test   # 7 tests, 13 assertions, green
+```
+
+This is what backs this repo's `:maturity :implemented` entry in
+[`kotoba-lang/occupation`](https://github.com/kotoba-lang/occupation) — the
+3rd `cloud-itonami-isco-*` occupation to reach that tier, after
+`cloud-itonami-isco-6112` and `cloud-itonami-isco-2221` (ADR-2607012000).
+
 ## License
 
 AGPL-3.0-or-later.
