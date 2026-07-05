@@ -7,4 +7,9 @@
  :itonami.blueprint/governor :plumbing-governor
  :itonami.blueprint/robotics true
  :itonami.blueprint/required-technologies [:robotics :forms :telemetry :dmn :bpmn :audit-ledger]
- :itonami.blueprint/status :public-oss}
+ :itonami.blueprint/status :public-oss
+ :itonami.blueprint/game {:id "plumbing-rounds"
+                          :repo "gftdcojp/network-isekai"
+                          :path "public/games/itonami/plumbing-rounds"
+                          :url "https://isekai.network/itonami/plumbing-rounds"
+                          :adr "ADR-2607031000"}}
