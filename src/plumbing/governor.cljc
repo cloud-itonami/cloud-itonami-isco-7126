@@ -14,7 +14,14 @@
 
   HARD invariants for :plumbing/propose:
     1. Job provenance — a repair or invoice must reference a registered job
-       on a registered site.
+       on a registered site. Checks BOTH halves independently (:no-job /
+       :no-site) — a job's :site-id is caller-supplied at registration and
+       was never validated against the site store (:site-fn wasn't even
+       wired into env-for-store), so a job could reference a site that
+       was never registered, with the site half of this invariant
+       completely unchecked. Same class of gap already found and fixed
+       in the sibling ISCO-1212/2221/6112 governors (:no-employee-record /
+       :no-patient-record / :no-plot).
     2. No-actuation    — the proposal must not directly mutate a repair or
        invoice record outside the record-repair!/record-invoice! path
        (effect must be :propose, never a raw store write).
@@ -44,12 +51,16 @@
   (let [idx (.indexOf safety-classes safety-class)]
     (if (neg? idx) 0 idx)))
 
-(defn- hard-violations [{:keys [job-fn]} proposal]
+(defn- hard-violations [{:keys [job-fn site-fn]} proposal]
   (let [{:keys [job-id kind safety-class effect]} proposal
-        found-job (job-fn job-id)]
+        found-job (job-fn job-id)
+        site (when found-job (site-fn (:site-id found-job)))]
     (cond-> []
       (nil? found-job)
       (conj {:rule :no-job :detail (str "未登録 job " job-id)})
+
+      (and found-job (nil? site))
+      (conj {:rule :no-site :detail (str "未登録 site " (:site-id found-job))})
 
       (not= :propose effect)
       (conj {:rule :no-actuation :detail "effect は :propose のみ許可（直接書込禁止）"})
@@ -64,8 +75,8 @@
              :detail ":live-line repair は :high 以上の safety-class が必須"}))))
 
 (defn assess
-  "Assess a proposal against `env` (a map with `:job-fn` lookup, decoupled
-  from any concrete Store so this stays pure). Returns
+  "Assess a proposal against `env` (a map with `:job-fn`/`:site-fn`
+  lookups, decoupled from any concrete Store so this stays pure). Returns
   `{:decision :proceed|:hold|:human-approval :violations [...] :confidence n}`."
   [env proposal]
   (let [violations (hard-violations env proposal)
@@ -89,4 +100,5 @@
   "Build the decoupled env map `assess` needs from a concrete
   `plumbing.store/Store` implementation."
   [store]
-  {:job-fn #(store/job store %)})
+  {:job-fn #(store/job store %)
+   :site-fn #(store/site store %)})

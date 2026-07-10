@@ -25,6 +25,21 @@
     (is (= :hold (:decision result)))
     (is (some #(= :no-job (:rule %)) (:violations result)))))
 
+(deftest holds-on-orphaned-job-with-no-site-record
+  ;; a job's :site-id is caller-supplied at registration and was never
+  ;; validated against the site store (:site-fn wasn't even wired into
+  ;; env-for-store), so a job could reference a site that was never
+  ;; registered, with the site half of "job on a registered site"
+  ;; completely unchecked.
+  (let [st (store/mem-store)
+        _ (store/register-job! st {:job-id "orphan-job" :site-id "no-such-site" :scope "leak repair"})
+        env (governor/env-for-store st)
+        proposal {:kind :standard :job-id "orphan-job" :safety-class :low
+                   :effect :propose :confidence 0.9}
+        result (governor/assess env proposal)]
+    (is (= :hold (:decision result)))
+    (is (some #(= :no-site (:rule %)) (:violations result)))))
+
 (deftest holds-on-no-actuation-violation
   (let [st (fresh-store)
         env (governor/env-for-store st)
