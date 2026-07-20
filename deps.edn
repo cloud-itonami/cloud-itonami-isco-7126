@@ -1,5 +1,11 @@
 {:paths ["src"]
- :deps {}
+ ;; kotoba-lang/occupation supplies the shared human-gap-referral-draft fn
+ ;; (ADR-2607202600) the governor uses for the :human-required disposition.
+ ;; This repo is standalone (forkable outside the workspace); this
+ ;; :local/root path only resolves inside the monorepo checkout -- a
+ ;; standalone fork should override it with git coordinates.
+ :deps {io.github.kotoba-lang/occupation
+        {:local/root "../../kotoba-lang/occupation"}}
  :aliases
  {:test {:extra-paths ["test"]
          :extra-deps {io.github.cognitect-labs/test-runner

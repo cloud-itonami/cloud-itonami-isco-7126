@@ -97,3 +97,134 @@
     (is (= 1 (count (store/repairs-of st "job-1"))))
     (is (= 1 (count (store/invoices-of st "job-1"))))
     (is (= 1 (count (store/jobs-of st "site-1"))))))
+
+;; ADR-2607202600: :human-required is a NEW, distinct disposition from
+;; :human-approval above -- the robot structurally CANNOT perform the task
+;; at all (not merely "could, but needs sign-off"). It is triggered ONLY by
+;; the explicit ground-truth `:human-required?` field on the proposal (this
+;; fleet's discipline: HARD/dispositional checks key off explicit fields,
+;; never governor inference), and the referral draft is produced by the ONE
+;; shared kotoba-lang/occupation fn, not hand-rolled here.
+;;
+;; Gap `:reason`/`:duration`/`:location` values below are chosen to match
+;; kotoba.occupation/route-gap's actual documented precedence (as of
+;; ADR-2607202600's occupation.clj): (1) :reason :no-automation-path OR
+;; :location :remote wins outright over any :duration, including
+;; :permanent/:recurring -> isic-8299; (2) :duration :permanent ->
+;; isic-7810; (3) :duration :recurring + :location :on-site -> isic-7820;
+;; (4) :duration :one-off -> isic-8299; (5) anything else (unrecognized/
+;; missing) -> isic-8299 as the documented, non-silent defensive fallback.
+;; `cloud-itonami-isic-6399` (public job-board widen-reach) is NOT reachable
+;; from this primary routing table at all -- per the ADR it is a distinct,
+;; separately-invoked `kotoba.occupation/widen-reach-draft` pre-step, never
+;; a branch of `route-gap`/`human-gap-referral-draft`.
+
+(deftest human-required-on-site-recurring-routes-to-temp-staffing-actor
+  ;; Real scenario for this occupation (on-site physical trade), not just an
+  ;; abstract routing test case: ongoing pipe-fitting work at a client site
+  ;; the crawler robot can't yet reach (manipulator dexterity/reach gap),
+  ;; recurring on-site work -> employer-of-record dispatch actor.
+  (let [st (fresh-store)
+        env (governor/env-for-store st)
+        proposal {:kind :standard :job-id "job-1" :safety-class :low
+                  :effect :propose :confidence 0.9
+                  :human-required? true
+                  :gap {:task "ongoing pipe-fitting work at a client site the robot can't yet reach"
+                        :reason :missing-technology
+                        :duration :recurring
+                        :location :on-site
+                        :urgency :normal}}
+        result (governor/assess env proposal)]
+    (is (= :human-required (:decision result)))
+    (is (empty? (:violations result)))
+    (is (= "cloud-itonami-isic-7820" (:target-actor (:referral result))))
+    (is (= "7126" (:isco (:referral result))))
+    (is (string? (:draft-id (:referral result))))))
+
+(deftest human-required-one-off-remote-routes-to-bpo-task-matching-actor
+  (let [st (fresh-store)
+        env (governor/env-for-store st)
+        proposal {:kind :standard :job-id "job-1" :safety-class :low
+                  :effect :propose :confidence 0.9
+                  :human-required? true
+                  :gap {:task "review a customer-submitted photo diagnostic remotely"
+                        :reason :no-automation-path
+                        :duration :one-off
+                        :location :remote
+                        :urgency :low}}
+        result (governor/assess env proposal)]
+    (is (= :human-required (:decision result)))
+    (is (= "cloud-itonami-isic-8299" (:target-actor (:referral result))))))
+
+(deftest human-required-permanent-routes-to-placement-agency-actor
+  ;; :reason must be something other than :no-automation-path/:location
+  ;; :remote here, or route-gap's cognitive/remote branch would win over
+  ;; :duration :permanent per its documented precedence (see comment block
+  ;; above) -- :missing-technology is the correct reason for a durable
+  ;; headcount gap the robot's own tech stack cannot close.
+  (let [st (fresh-store)
+        env (governor/env-for-store st)
+        proposal {:kind :standard :job-id "job-1" :safety-class :low
+                  :effect :propose :confidence 0.9
+                  :human-required? true
+                  :gap {:task "hire a full-time backup plumber for jobs outside robot scope"
+                        :reason :missing-technology
+                        :duration :permanent
+                        :location :on-site
+                        :urgency :normal}}
+        result (governor/assess env proposal)]
+    (is (= :human-required (:decision result)))
+    (is (= "cloud-itonami-isic-7810" (:target-actor (:referral result))))))
+
+(deftest human-required-ambiguous-shape-falls-back-to-bpo-task-matching-actor
+  ;; No recognized :reason/:duration/:location combination -> route-gap's
+  ;; documented defensive fallback, which is isic-8299 (the only target
+  ;; with no employer-of-record liability), NOT isic-6399 -- isic-6399 is
+  ;; reachable only via the separate, explicitly-invoked
+  ;; kotoba.occupation/widen-reach-draft, never via this classifier.
+  (let [st (fresh-store)
+        env (governor/env-for-store st)
+        proposal {:kind :standard :job-id "job-1" :safety-class :low
+                  :effect :propose :confidence 0.9
+                  :human-required? true
+                  :gap {:task "unclear scope specialty repair" :reason :other}}
+        result (governor/assess env proposal)]
+    (is (= :human-required (:decision result)))
+    (is (= "cloud-itonami-isic-8299" (:target-actor (:referral result))))))
+
+(deftest hard-violation-holds-even-with-human-required-flag-set
+  ;; Hard violations take precedence: a real HARD violation (unregistered
+  ;; job) still :holds regardless of :human-required? -- :human-required is
+  ;; checked AFTER hard-violations, as its own distinct branch.
+  (let [st (fresh-store)
+        env (governor/env-for-store st)
+        proposal {:kind :standard :job-id "no-such-job" :safety-class :low
+                  :effect :propose :confidence 0.9
+                  :human-required? true
+                  :gap {:task "ongoing pipe-fitting work at a client site the robot can't yet reach"
+                        :duration :recurring :location :on-site}}
+        result (governor/assess env proposal)]
+    (is (= :hold (:decision result)))
+    (is (some #(= :no-job (:rule %)) (:violations result)))
+    (is (not (contains? result :referral)))))
+
+(deftest store-records-human-gap-round-trips
+  (let [st (fresh-store)
+        env (governor/env-for-store st)
+        proposal {:kind :standard :job-id "job-1" :safety-class :low
+                  :effect :propose :confidence 0.9
+                  :human-required? true
+                  :gap {:task "ongoing pipe-fitting work at a client site the robot can't yet reach"
+                        :reason :missing-technology
+                        :duration :recurring
+                        :location :on-site
+                        :urgency :normal}}
+        result (governor/assess env proposal)]
+    (is (empty? (store/human-gaps-of st "job-1")))
+    (store/record-human-gap! st {:job-id "job-1"
+                                  :gap (:gap proposal)
+                                  :referral (:referral result)})
+    (let [recorded (store/human-gaps-of st "job-1")]
+      (is (= 1 (count recorded)))
+      (is (= "cloud-itonami-isic-7820" (:target-actor (:referral (first recorded)))))
+      (is (= (:gap proposal) (:gap (first recorded)))))))

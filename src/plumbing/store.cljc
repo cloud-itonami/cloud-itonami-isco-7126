@@ -10,6 +10,12 @@
     repair  — a repair action performed under a job (repairId, jobId, kind
               #{:standard :live-line}, performedBy #{:robot :plumber})
     invoice — a billed amount for a job (invoiceId, jobId, amountCents)
+    human-gap — a :human-required governor decision (ADR-2607202600): this
+                actor's OWN half of a human-required-gap referral (the gap
+                detected + the draft-id + which staffing/matching actor was
+                named). It records ONLY that half -- it never writes to,
+                calls, or shares a store with the target actor; a human
+                carries the draft there (same invariant as ADR-2607131000).
 
   The append-only records are the operating ledger: a repair or invoice must
   reference a registered job on a registered site, and repairs/invoices are
@@ -21,10 +27,12 @@
   (jobs-of [st site-id])
   (repairs-of [st job-id])
   (invoices-of [st job-id])
+  (human-gaps-of [st job-id])
   (register-site! [st site])
   (register-job! [st job])
   (record-repair! [st repair])
-  (record-invoice! [st invoice]))
+  (record-invoice! [st invoice])
+  (record-human-gap! [st gap-record]))
 
 (defrecord MemStore [state]
   Store
@@ -38,6 +46,8 @@
     (filter #(= job-id (:job-id %)) (:repairs @state)))
   (invoices-of [_ job-id]
     (filter #(= job-id (:job-id %)) (:invoices @state)))
+  (human-gaps-of [_ job-id]
+    (filter #(= job-id (:job-id %)) (:human-gaps @state)))
   (register-site! [_ site]
     (swap! state assoc-in [:sites (:site-id site)] site))
   (register-job! [_ job]
@@ -45,9 +55,11 @@
   (record-repair! [_ repair]
     (swap! state update :repairs (fnil conj []) repair))
   (record-invoice! [_ invoice]
-    (swap! state update :invoices (fnil conj []) invoice)))
+    (swap! state update :invoices (fnil conj []) invoice))
+  (record-human-gap! [_ gap-record]
+    (swap! state update :human-gaps (fnil conj []) gap-record)))
 
 (defn mem-store
   ([] (mem-store {}))
   ([seed]
-   (->MemStore (atom (merge {:sites {} :jobs {} :repairs [] :invoices []} seed)))))
+   (->MemStore (atom (merge {:sites {} :jobs {} :repairs [] :invoices [] :human-gaps []} seed)))))
