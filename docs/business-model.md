@@ -70,6 +70,49 @@ This exact rule is what the companion playable prototype
 mechanic: touch the depot ("van") to get this round's sign-off, good for
 exactly one leak, before you can clear it clean.
 
+## Human-Required Gap Referral (ADR-2607202500)
+
+`:plumbing-governor` can also return a **new, distinct** disposition,
+`:human-required` — separate from `:human-approval` above. `:human-approval`
+means the robot COULD perform the repair but a human must sign off first;
+`:human-required` means the crawler robot structurally CANNOT perform the
+task at all (e.g. a fitting outside its manipulator's dexterity/reach), and
+a human must actually do the work, not just approve it. This is triggered
+**only** by an explicit ground-truth field the caller sets on the proposal
+(`:human-required?` plus a `:gap` map) — the governor never infers or
+guesses this itself. A real HARD violation (unregistered job, direct-write
+effect, unsafe live-line repair) still forces `:hold` regardless of this
+flag.
+
+When the governor returns `:human-required`, it calls the ONE shared
+`kotoba.occupation/human-gap-referral-draft` function
+(`kotoba-lang/occupation`) to produce a referral **draft** naming which
+existing job-matching actor a human operator should carry the gap to, based
+on the gap's shape (one-off/remote, on-site/recurring, permanent, or
+ambiguous/public-reach):
+
+| gap shape | target actor |
+|---|---|
+| one-off + remote | `cloud-itonami-isic-8299` |
+| on-site + recurring | `cloud-itonami-isic-7820` |
+| permanent | `cloud-itonami-isic-7810` |
+| ambiguous / other | `cloud-itonami-isic-6399` |
+
+This actor **never calls the target actor directly** — no shared store, no
+shared governor, no actor-to-actor API call (same invariant ADR-2607131000
+already established for the 6399↔7810 handoff). `record-human-gap!`
+(`plumbing.store`) appends only this actor's own half of the story — the
+gap detected, the draft-id, and which actor was named — to this actor's own
+append-only ledger. The target actor's own governor takes over
+independently once a human physically carries the draft into that actor's
+intake.
+
+**Honesty boundary**: this software only produces a governed, audited
+referral *draft*. It does **not** itself contact any real recruiting
+platform, execute any real contract, or move any real payment. A human
+operator — or a real licensed staffing business — carries the draft and
+supplies the real-world integration.
+
 ## Required Technologies
 
 `blueprint.edn` names six `:required-technologies`; each exists to serve a
