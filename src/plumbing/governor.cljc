@@ -29,8 +29,23 @@
        :high or higher safety-class, which forces human sign-off; it is
        never auto-approved regardless of confidence.
   SOFT:
-    4. Confidence floor → escalate."
-  (:require [plumbing.store :as store]))
+    4. Confidence floor → escalate.
+
+  :human-required (ADR-2607202600): distinct from :human-approval above.
+  :human-approval means the robot COULD perform the action but a human must
+  sign off first; :human-required means the robot structurally CANNOT
+  perform the task at all (e.g. a fitting outside the crawler robot's
+  manipulator dexterity/reach) -- a human must actually DO the work. This
+  is triggered ONLY from an explicit ground-truth field the caller sets on
+  the proposal (`:human-required?` + a `:gap` map), never inferred/guessed
+  by the governor -- this fleet's discipline is that HARD/dispositional
+  checks always key off explicit ground-truth fields on the record, never
+  LLM inference. It is checked AFTER the hard-violation checks: a proposal
+  with a real HARD violation still :holds regardless of :human-required?."
+  (:require [plumbing.store :as store]
+            [kotoba.occupation :as occupation]))
+
+(def isco-id "7126")
 
 (def confidence-floor 0.6)
 (def safety-classes [:none :low :medium :high :safety-critical])
@@ -77,7 +92,8 @@
 (defn assess
   "Assess a proposal against `env` (a map with `:job-fn`/`:site-fn`
   lookups, decoupled from any concrete Store so this stays pure). Returns
-  `{:decision :proceed|:hold|:human-approval :violations [...] :confidence n}`."
+  `{:decision :proceed|:hold|:human-approval|:human-required :violations [...]
+  :confidence n}` (plus a `:referral` draft when `:human-required`)."
   [env proposal]
   (let [violations (hard-violations env proposal)
         safety-class (or (:safety-class proposal) :none)
@@ -85,6 +101,13 @@
     (cond
       (seq violations)
       {:decision :hold :violations violations :confidence confidence}
+
+      ;; Explicit ground-truth field only -- never inferred. Checked after
+      ;; hard violations (a real HARD violation still :holds) but as its
+      ;; own distinct branch, never folded into :human-approval below.
+      (true? (:human-required? proposal))
+      {:decision :human-required :violations [] :confidence confidence
+       :referral (occupation/human-gap-referral-draft isco-id (:gap proposal))}
 
       (>= (safety-rank safety-class) (safety-rank :high))
       {:decision :human-approval :violations [] :confidence confidence}
