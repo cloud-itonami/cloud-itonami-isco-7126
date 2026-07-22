@@ -4,11 +4,14 @@ name: CI
 # kotoba-lang/langgraph via in-monorepo :local/root paths
 # (../../kotoba-lang/occupation, ../../kotoba-lang/langgraph), and the
 # :dev alias overrides langgraph's own transitive langchain dep the
-# same way. Those don't resolve on a bare single-repo checkout, so the
-# test job reconstructs the workspace layout by checking out all three
-# siblings (all PUBLIC) into the expected relative paths -- no token
-# needed. Same pattern as cloud-itonami-isco-3121 / cloud-itonami-isco-0210
-# / cloud-itonami-iso3166-ago.
+# same way. kotoba-lang/occupation ITSELF pins kotoba-lang/technology
+# the same way (../technology). None of these resolve on a bare
+# single-repo checkout, so the test job reconstructs the workspace
+# layout by checking out all four siblings (all PUBLIC) into the
+# expected relative paths -- no token needed. Same base pattern as
+# cloud-itonami-isco-3121 / cloud-itonami-isco-0210 / cloud-itonami-iso3166-ago
+# (those three don't happen to need kotoba-lang/technology -- this repo
+# does, transitively via kotoba-lang/occupation).
 #
 # Prior to the sibling checkout below, this workflow ran a single
 # checkout + `clojure -M:test`, which failed classpath resolution
@@ -44,6 +47,10 @@ jobs:
         with:
           repository: kotoba-lang/occupation
           path: orgs/kotoba-lang/occupation
+      - uses: actions/checkout@v4
+        with:
+          repository: kotoba-lang/technology
+          path: orgs/kotoba-lang/technology
       - uses: actions/checkout@v4
         with:
           repository: kotoba-lang/langgraph
