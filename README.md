@@ -80,7 +80,7 @@ Contract above (all `.cljc`):
   governed proposal, end to end.
 
 ```bash
-clojure -M:dev:test   # 30 tests, 110 assertions, green (governor · telemetry · operation)
+kbb -M:dev:test   # 30 tests, 110 assertions, green (governor · telemetry · operation)
 ```
 
 This backs this repo's `:maturity :implemented` entry in
