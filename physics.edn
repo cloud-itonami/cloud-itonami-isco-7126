@@ -1,0 +1,33 @@
+;; What this vertical's robot physically does, declared for
+;; kotoba.robotics.process (kotoba-lang/robotics). `kbb -M:dev:physics` runs it.
+;;
+;; README "Robotics premise": a pipe-inspection crawler robot for plumbers
+;; and pipe fitters (ISCO 7126) performs sewer/pipe camera diagnostics and
+;; leak-pressure testing; work near live water/gas lines or in occupied
+;; residences needs human sign-off. Its physical work is crawling a drain
+;; line against gradient and tether drag, and checking that a repaired
+;; supply line still delivers its design flow.
+;;
+;; Every number without a cited source is marked `estimate` in its :basis.
+;; Replacing an estimate with a sourced value is this bot's growth work.
+{:physics/schema "itonami.physical-ai.spec.v1"
+ :repo "cloud-itonami/cloud-itonami-isco-7126"
+ :cases
+ [{:id :crawler-drain-survey
+   :kind :transport
+   :procedure "camera crawler drives 30 m up a 150 mm drain line from the inspection chamber, dragging its tether; the pipe's gradient is swept (steep sections and bends)"
+   :params {:mass-kg 12.0 :payload-kg 3.0 :distance-m 30.0 :v-max-mps 0.15 :a-max-mps2 0.2
+            :brake-decel-mps2 0.3 :drive-force-n 60.0 :crr 0.15
+            :cog-height-m 0.06 :support-half-length-m 0.10}
+   :sweep {:param :slope-deg :values [0.0 5.0 10.0 15.0 20.0 25.0]}
+   :quantity :cycle-time-s
+   :limit {:max 300.0 :basis "estimate: a 30 m survey run inside a 5-minute slot per chamber-to-chamber section"}
+   :boundary {:lo 0.0 :hi 40.0}}
+  {:id :supply-line-flow-check
+   :kind :pipe-flow
+   :procedure "after a repair, the crawler's pressure test rig checks a 25 m run of 20 mm (ID 16 mm) service pipe rising 4 m to the outlet; the demanded flow is swept"
+   :params {:diameter-m 0.016 :length-m 25.0 :roughness-m 7.0e-6 :elevation-m 4.0}
+   :sweep {:param :q-m3s :values [0.0001 0.0002 0.0003 0.0004 0.0005 0.0007]}
+   :quantity :pressure-drop-pa
+   :limit {:max 200000.0 :basis "estimate: mains pressure at the stopcock (~3 bar) less a ~1 bar residual wanted at the outlet"}
+   :boundary {:lo 0.00005 :hi 0.001}}]}
