@@ -10,7 +10,7 @@
   `plumbing.store` instance (which `MemStore` mutates in place) so a
   passing test proves the record is genuinely durable in the store,
   not merely present in the graph's transient run-state."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [plumbing.advisor :as advisor]
             [plumbing.operation :as operation]
             [plumbing.store :as store]))
