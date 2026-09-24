@@ -8,7 +8,11 @@
  ;; standalone (forkable outside the workspace); these :local/root paths
  ;; only resolve inside the monorepo checkout -- a standalone fork should
  ;; override them with git coordinates.
- :deps {io.github.kotoba-lang/occupation
+ :deps {
+        ;; kotoba.test (clojure.test-compatible surface), not clojure.test --
+        ;; scripts/migrate-clojure-test-to-kotoba-test.cljk. Explicit floor.
+        io.github.kotoba-lang/test {:git/url "https://github.com/kotoba-lang/test.git"
+                                    :git/sha "2ab4885f99fd25552d380d0f6b0b54c5a72eb7ae"}io.github.kotoba-lang/occupation
         {:local/root "../../kotoba-lang/occupation"}
         io.github.kotoba-lang/langgraph
         {:local/root "../../kotoba-lang/langgraph"}}
